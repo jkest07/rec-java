@@ -1,0 +1,66 @@
+services:
+
+  api:
+    image: ${DOCKER_IMAGE}
+    container_name: rec-api
+    restart: "no"
+    expose:
+      - "8080"
+    networks:
+      - rec-network
+
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - uptime-kuma-data:/app/data
+    expose:
+      - "3001"
+    networks:
+      - rec-network
+
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dozzle-data:/data
+    expose:
+      - "8080"
+    networks:
+      - rec-network
+
+
+  npm:
+    image: jc21/nginx-proxy-manager:2.15.1
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    environment:
+      TZ: "America/Bogota"
+    volumes:
+      - npm-data:/data
+      - npm-letsencrypt:/etc/letsencrypt
+    networks:
+      - rec-network
+
+
+networks:
+
+  rec-network:
+    driver: bridge
+
+
+volumes:
+
+  uptime-kuma-data:
+  dozzle-data:
+  npm-data:
+  npm-letsencrypt:
