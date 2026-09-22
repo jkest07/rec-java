@@ -38,6 +38,8 @@ jobs:
         run: mvn -B test
 
       - name: OWASP Dependency Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: mvn -B dependency-check:check
 
       - name: Construir imagen Docker

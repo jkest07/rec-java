@@ -69,8 +69,13 @@
 
                 <configuration>
                     <failBuildOnCVSS>7.0</failBuildOnCVSS>
-                </configuration>
 
+                    <nvdApiKeyEnvironmentVariable>
+                        NVD_API_KEY
+                    </nvdApiKeyEnvironmentVariable>
+
+                    <nvdMaxRetryCount>10</nvdMaxRetryCount>
+                </configuration>
             </plugin>
 
         </plugins>
