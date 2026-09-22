@@ -51,7 +51,7 @@ jobs:
       - name: Escanear imagen con Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: rec-java:${{ github.sha }}
+          image-ref: rec-java:${{ github.sha }} 
           format: table
           exit-code: "1"
           ignore-unfixed: true
