@@ -35,12 +35,12 @@ jobs:
           cache: maven
 
       - name: Ejecutar pruebas
-        run: mvn -B test
+        run: mvn -U -B test
 
       - name: OWASP Dependency Check
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: mvn -B dependency-check:check
+        run: mvn -U -B dependency-check:check
 
       - name: Construir imagen Docker
         run: |
