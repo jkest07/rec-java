@@ -30,6 +30,13 @@
     <!-- Versión de Java -->
     <properties>
         <java.version>21</java.version>
+
+        <!--
+            Spring Boot 4.1.1 usa Tomcat 11.0.24 por defecto.
+            Actualizamos Tomcat porque Dependency-Check detectó CVEs
+            corregidos en versiones posteriores.
+        -->
+        <tomcat.version>11.0.26</tomcat.version>
     </properties>
 
     <!-- Dependencias -->
