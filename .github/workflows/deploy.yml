@@ -16,6 +16,10 @@ permissions:
 
 jobs:
 
+  # ============================================================
+  # JOB 1 - PRUEBAS Y SEGURIDAD
+  # ============================================================
+
   security:
 
     name: Tests y Seguridad
@@ -24,8 +28,17 @@ jobs:
 
     steps:
 
+      # --------------------------------------------------------
+      # Descargar código
+      # --------------------------------------------------------
+
       - name: Descargar repositorio
         uses: actions/checkout@v7
+
+
+      # --------------------------------------------------------
+      # Java
+      # --------------------------------------------------------
 
       - name: Configurar Java 21
         uses: actions/setup-java@v6
@@ -34,13 +47,76 @@ jobs:
           java-version: "21"
           cache: maven
 
+
+      # --------------------------------------------------------
+      # Tests
+      # --------------------------------------------------------
+
       - name: Ejecutar pruebas
         run: mvn -U -B test
+
+
+      # --------------------------------------------------------
+      # Caché de OWASP Dependency Check
+      # --------------------------------------------------------
+
+      - name: Cache OWASP Dependency Check
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data/
+          key: dependency-check-${{ runner.os }}-v13
+          restore-keys: |
+            dependency-check-${{ runner.os }}-
+
+
+      # --------------------------------------------------------
+      # OWASP Dependency Check
+      # --------------------------------------------------------
 
       - name: OWASP Dependency Check
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: mvn -U -B dependency-check:check
+        shell: bash
+        run: |
+          for intento in 1 2 3; do
+
+            echo "=========================================="
+            echo "Intento $intento de 3"
+            echo "=========================================="
+
+            if mvn -U -B dependency-check:check; then
+
+              echo "=========================================="
+              echo "Dependency Check completado correctamente"
+              echo "=========================================="
+
+              exit 0
+
+            fi
+
+            if [ "$intento" -lt 3 ]; then
+
+              echo "=========================================="
+              echo "Dependency Check fallo."
+              echo "Esperando 60 segundos antes de reintentar..."
+              echo "=========================================="
+
+              sleep 60
+
+            fi
+
+          done
+
+          echo "=========================================="
+          echo "Dependency Check fallo despues de 3 intentos"
+          echo "=========================================="
+
+          exit 1
+
+
+      # --------------------------------------------------------
+      # Construcción Docker para análisis
+      # --------------------------------------------------------
 
       - name: Construir imagen Docker
         run: |
@@ -48,15 +124,24 @@ jobs:
             -t rec-java:${{ github.sha }} \
             .
 
+
+      # --------------------------------------------------------
+      # Trivy
+      # --------------------------------------------------------
+
       - name: Escanear imagen con Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: rec-java:${{ github.sha }} 
+          image-ref: rec-java:${{ github.sha }}
           format: table
           exit-code: "1"
           ignore-unfixed: true
           severity: HIGH,CRITICAL
 
+
+  # ============================================================
+  # JOB 2 - PUBLICAR Y DESPLEGAR
+  # ============================================================
 
   publish-deploy:
 
@@ -65,14 +150,25 @@ jobs:
     needs:
       - security
 
+    # No desplegamos desde Pull Requests.
+    # Solo desde push a main y después de que security sea exitoso.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     runs-on: ubuntu-latest
 
     steps:
 
+      # --------------------------------------------------------
+      # Descargar código
+      # --------------------------------------------------------
+
       - name: Descargar repositorio
         uses: actions/checkout@v7
+
+
+      # --------------------------------------------------------
+      # Login Docker Hub
+      # --------------------------------------------------------
 
       - name: Login Docker Hub
         uses: docker/login-action@v4
@@ -80,8 +176,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+
+      # --------------------------------------------------------
+      # Docker Buildx
+      # --------------------------------------------------------
+
       - name: Configurar Buildx
         uses: docker/setup-buildx-action@v3
+
+
+      # --------------------------------------------------------
+      # Build y Push a Docker Hub
+      # --------------------------------------------------------
 
       - name: Construir y publicar imagen
         uses: docker/build-push-action@v7
@@ -92,21 +198,47 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/rec-java:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/rec-java:${{ github.sha }}
 
+
+      # --------------------------------------------------------
+      # Preparar SSH
+      # --------------------------------------------------------
+
       - name: Preparar SSH
+        shell: bash
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
+
+          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
+
           chmod 600 ~/.ssh/ec2_key
+
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
+
+      # --------------------------------------------------------
+      # Despliegue automático AWS EC2
+      # --------------------------------------------------------
+
       - name: Desplegar en AWS EC2
+        shell: bash
         run: |
           ssh \
             -i ~/.ssh/ec2_key \
             "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
             '
-              cd /opt/rec-java &&
-              git pull origin main &&
-              docker compose pull &&
+              set -e
+
+              cd /opt/rec-java
+
+              echo "Actualizando repositorio..."
+              git pull origin main
+
+              echo "Descargando nuevas imagenes..."
+              docker compose pull
+
+              echo "Actualizando contenedores..."
               docker compose up -d
+
+              echo "Estado de los contenedores:"
+              docker compose ps
             '

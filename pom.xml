@@ -74,9 +74,11 @@
                         NVD_API_KEY
                     </nvdApiKeyEnvironmentVariable>
 
-                    <nvdMaxRetryCount>10</nvdMaxRetryCount>
+                    <nvdMaxRetryCount>20</nvdMaxRetryCount>
+
+                    <nvdApiDelay>6000</nvdApiDelay>
                 </configuration>
-            </plugin>
+            </plugin>   
 
         </plugins>
 
